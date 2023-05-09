@@ -1,14 +1,21 @@
 package com.android.chrometabs
 
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.res.Resources.Theme
 import android.net.Uri
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.browser.customtabs.*
+import androidx.browser.customtabs.CustomTabsIntent.SHARE_STATE_OFF
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.core.graphics.drawable.toBitmap
 import com.android.chrometabs.databinding.ActivityMainBinding
 
 
@@ -24,52 +31,114 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        initialize()
+        CustomTabsClient.bindCustomTabsService(
+            this@MainActivity, "com.android.chrome", serviceConnection
+        )
+
+    }
+
+    private fun showDataFromIntent() {
+        val data: Uri? = intent?.data
+
+        // Figure out what to do based on the intent type
+        if (intent?.type?.startsWith("image/") == true) {
+            // Handle intents with image data ...
+            Log.d("Intent", intent?.type.toString())
+        } else if (intent?.type == "text/plain") {
+            // Handle intents with text ...
+            Log.d("Intent.text", intent.extras?.getString("android.intent.extra.TEXT").toString())
+        } else {
+            if (data != null) {
+                Log.d("Intent URL", data.toString())
+            }
+        }
+    }
+
+    private fun initialize() {
+        val height = getHeightInPercentage(80, this@MainActivity)
         serviceConnection = object : CustomTabsServiceConnection() {
             override fun onCustomTabsServiceConnected(
                 name: ComponentName, mClient: CustomTabsClient
             ) {
+                val sendIntent = Intent(this@MainActivity, ShareBroadCastReceiver::class.java)
+                val requestCode = 0 // request code used to identify the PendingIntent
+                val pendingIntent = PendingIntent.getBroadcast(
+                    applicationContext,
+                    requestCode,
+                    sendIntent,
+                    PendingIntent.FLAG_MUTABLE
+                )
+                AppCompatResources.getDrawable(this@MainActivity, R.drawable.baseline_share_24)
+                    ?.toBitmap()
+                    ?.let { builder.setActionButton(it, "ActionButton", pendingIntent, true) }
                 Log.d("Service", "Connected")
                 client = mClient
                 client.warmup(0L)
                 val callback = TabsCallBack()
                 session = mClient.newSession(callback)!!
                 builder.setSession(session)
+                builder.setInitialActivityHeightPx(height)
+                builder.setColorSchemeParams(
+                    CustomTabsIntent.COLOR_SCHEME_LIGHT,
+                    CustomTabColorSchemeParams.Builder()
+                        .setToolbarColor(resources.getColor(R.color.purple_500)).build()
+                )
+                builder.setColorSchemeParams(
+                    CustomTabsIntent.COLOR_SCHEME_DARK,
+                    CustomTabColorSchemeParams.Builder()
+                        .setToolbarColor(resources.getColor(R.color.teal_700)).build()
+                )
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
                 Log.d("Service", "Disconnected")
             }
         }
-        CustomTabsClient.bindCustomTabsService(this@MainActivity, "com.android.chrome", serviceConnection)
     }
 
     override fun onStart() {
         super.onStart()
-        CustomTabsClient.bindCustomTabsService(this@MainActivity, "com.android.chrome", serviceConnection)
+        CustomTabsClient.bindCustomTabsService(
+            this@MainActivity, "com.android.chrome", serviceConnection
+        )
     }
 
     override fun onResume() {
         super.onResume()
-        val height = getHeightInPercentage(80,this@MainActivity)
+        // The URL is stored in the intent's data
+        val data: Uri? = intent?.data
+
+        // Figure out what to do based on the intent type
+        if (intent?.type?.startsWith("image/") == true) {
+            // Handle intents with image data ...
+            Log.d("Intent", intent?.type.toString())
+        } else if (intent?.type == "text/plain") {
+            // Handle intents with text ...
+            Log.d("Intent.text", intent.extras?.getString("android.intent.extra.TEXT").toString())
+        } else {
+            if (data != null) {
+                Log.d("Intent URL", data.toString())
+            }
+        }
         binding.launchButton.setOnClickListener {
             url = getUrlToBeLaunched(url)
-            builder.setInitialActivityHeightPx(height)
             val customTabsIntent: CustomTabsIntent = builder.build()
             customTabsIntent.launchUrl(this@MainActivity, Uri.parse(url))
         }
     }
 
     private fun getUrlToBeLaunched(url: String): String {
-        if(binding.etUrl.text.isNullOrEmpty()) {
+        if (binding.etUrl.text.isNullOrEmpty()) {
             return url
         }
         return binding.etUrl.text.toString()
     }
 
-    fun getHeightInPercentage(percentage : Int,context: Context): Int {
+    fun getHeightInPercentage(percentage: Int, context: Context): Int {
         val height = getScreenHeight(context)
-        val factor = percentage.toFloat()/100f
-        return (height*factor).toInt()
+        val factor = percentage.toFloat() / 100f
+        return (height * factor).toInt()
     }
 
     fun getScreenHeight(context: Context): Int {
